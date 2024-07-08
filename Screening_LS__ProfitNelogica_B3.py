@@ -10,6 +10,8 @@ import statsmodels.api as sm
 import warnings
 from joblib import Parallel, delayed
 
+#Este código usa os arquivos de séries históricas extraídos da plataforma Profit da Nelogica e os arquivos com a lista de ativos que compõem cada índice da B3 extraídos do site da B3.
+
 
 # Ignora os warnings
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -142,7 +144,7 @@ def plot_pair(cot, x, y, meiavida):
 
 def process_pair(x, y):
     acn1 = pd.read_csv(
-        f"C:/Users/armen/OneDrive/Estratégias/Base/Diária/{x}_B_0_Diário.csv",
+        f"C:/.../Base/Diária/{x}_B_0_Diário.csv",
         sep=";",
         encoding="ISO-8859-1",
         skiprows=0,
@@ -154,7 +156,7 @@ def process_pair(x, y):
         index_col=False,
     )
     acn2 = pd.read_csv(
-        f"C:/Users/armen/OneDrive/Estratégias/Base/Diária/{y}_B_0_Diário.csv",
+        f"C:/.../Base/Diária/{y}_B_0_Diário.csv",
         sep=";",
         encoding="ISO-8859-1",
         skiprows=0,
@@ -251,7 +253,7 @@ else:
 # selecionado. O arquivo mais recente é então identificado usando os.path.getctime
 # (que retorna a hora de criação do arquivo) e armazenado na variável latest_file.
 
-list_of_files = glob.glob(f"C:/Users/armen/OneDrive/Estratégias/Listas/{indice}/*")
+list_of_files = glob.glob(f"C:/.../Listas/{indice}/*")
 latest_file = max(list_of_files, key=os.path.getctime)
 
 # Leitura do arquivo CSV que contém a lista de ações do índice selecionado
