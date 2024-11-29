@@ -26,53 +26,53 @@ def setores():
     setores["Unnamed: 5"] = ""
 
     for i in range(0, len(setores["Unnamed: 3"])):
-        if setores["Unnamed: 0"][i] == "SETOR ECONÔMICO":
-            setores["Unnamed: 0"][i + 1] = ""
-        elif pd.notna(setores["Unnamed: 0"][i]):
+        if setores.loc[i,"Unnamed: 0"] == "SETOR ECONÔMICO":
+            setores[i + 1,"Unnamed: 0"] = ""
+        elif pd.notna(setores.loc[i, "Unnamed: 0"]):
             continue
-        elif pd.isna(setores["Unnamed: 0"][i]):
-            setores["Unnamed: 0"][i] = setores["Unnamed: 0"][i - 1]
+        elif pd.isna(setores.loc[i,"Unnamed: 0"]):
+            setores.loc[i,"Unnamed: 0"] = setores.loc[i - 1,"Unnamed: 0"]
 
     for i in range(0, len(setores["Unnamed: 3"])):
-        if setores["Unnamed: 1"][i] == "SUBSETOR":
-            setores["Unnamed: 1"][i + 1] = ""
-        elif pd.notna(setores["Unnamed: 1"][i]):
-            setores["Unnamed: 1"][i] = setores["Unnamed: 1"][i]
-        elif pd.isna(setores["Unnamed: 1"][i]):
-            setores["Unnamed: 1"][i] = setores["Unnamed: 1"][i - 1]
+        if setores.loc[i,"Unnamed: 1"] == "SUBSETOR":
+            setores.loc[i + 1,"Unnamed: 1"] = ""
+        elif pd.notna(setores.loc[i, "Unnamed: 1"]):
+            setores.loc[i,"Unnamed: 1"] = setores.loc[i,"Unnamed: 1"]
+        elif pd.isna(setores.loc[i, "Unnamed: 1"]):
+            setores.loc[i,"Unnamed: 1"] = setores.loc[i - 1,"Unnamed: 1"]
 
     for i in range(0, len(setores["Unnamed: 3"])):
-        if setores["Unnamed: 2"][i] == "SEGMENTO":
-            setores["Unnamed: 5"][i] = "SEGMENTO"
-            setores["Unnamed: 2"][i] = "CIA"
+        if setores.loc[i,"Unnamed: 2"] == "SEGMENTO":
+            setores.loc[i,"Unnamed: 5"] = "SEGMENTO"
+            setores.loc[i,"Unnamed: 2"] = "CIA"
         elif (
-            pd.notna(setores["Unnamed: 2"][i])
-            and pd.isna(setores["Unnamed: 3"][i])
-            and pd.isna(setores["Unnamed: 4"][i])
+            pd.notna(setores.loc[i,"Unnamed: 2"])
+            and pd.isna(setores.loc[i,"Unnamed: 3"])
+            and pd.isna(setores.loc[i,"Unnamed: 4"])
         ):
-            setores["Unnamed: 5"][i] = setores["Unnamed: 2"][i]
-        elif pd.notna(setores["Unnamed: 2"][i]) and pd.notna(setores["Unnamed: 3"][i]):
-            setores["Unnamed: 5"][i] = setores["Unnamed: 5"][i - 1]
+            setores.loc[i,"Unnamed: 5"] = setores.loc[i,"Unnamed: 2"]
+        elif pd.notna(setores.loc[i, "Unnamed: 2"]) and pd.notna(setores.loc[i, "Unnamed: 3"]):
+            setores.loc[i,"Unnamed: 5"] = setores.loc[i - 1,"Unnamed: 5"]
         elif (
-            pd.isna(setores["Unnamed: 2"][i])
-            and pd.notna(setores["Unnamed: 3"][i])
-            and pd.notna(setores["Unnamed: 4"][i])
+            pd.isna(setores.loc[i,"Unnamed: 2"])
+            and pd.notna(setores.loc[i,"Unnamed: 3"])
+            and pd.notna(setores.loc[i,"Unnamed: 4"])
         ):
-            setores["Unnamed: 5"][i] = ""
+            setores.loc[i,"Unnamed: 5"] = ""
         elif (
-            pd.isna(setores["Unnamed: 2"][i])
-            and pd.isna(setores["Unnamed: 3"][i])
-            and pd.isna(setores["Unnamed: 4"][i])
+            pd.isna(setores.loc[i,"Unnamed: 2"])
+            and pd.isna(setores.loc[i,"Unnamed: 3"])
+            and pd.isna(setores.loc[i,"Unnamed: 4"])
         ):
-            setores["Unnamed: 5"][i] = ""
+            setores.loc[i,"Unnamed: 5"] = ""
 
     for i in range(0, len(setores["Unnamed: 3"])):
         if (
-            setores["Unnamed: 3"][i] == "LISTAGEM"
-            or setores["Unnamed: 3"][i] == "CÓDIGO"
+            setores.loc[i,"Unnamed: 3"] == "LISTAGEM"
+            or setores.loc[i, "Unnamed: 3"] == "CÓDIGO"
         ):
             setores.drop(i, inplace=True)
-        elif pd.isna(setores["Unnamed: 3"][i]):
+        elif pd.isna(setores.loc[i,"Unnamed: 3"]):
             setores.drop(i, inplace=True)
 
     setores = setores.rename(
