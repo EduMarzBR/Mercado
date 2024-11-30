@@ -54,7 +54,7 @@ data_atual = datetime.now()
 ind = yf.download(ind1, start="2022-01-01", end=data_atual)
 
 ind_fech = ind["Adj Close"]
-ind_close = ind["Adj Close"][:-100]
+ind_close = ind["Adj Close"]
 last_price = ind_close.iloc[-1]
 
 # Estimativa de Hurst e parâmetros
