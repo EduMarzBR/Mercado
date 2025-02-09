@@ -1,36 +1,59 @@
-import pandas as pd
-import talib
-import matplotlib.pyplot as plt
-import os
 import glob
+import os
+import math
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go  # Caso deseje utilizar o Plotly para debug ou análise
 
-def calcular_desempenho_relativo(ativo, indice):
-    rs_ratio = (ativo / indice) * 100
-    rs_ratio = ((rs_ratio - rs_ratio.ewm(span=21).mean()) / rs_ratio.ewm(span=21).std())*100
-    return rs_ratio.round(2)
+# -------------------------------
+# Função para regressão linear em janela móvel
+# -------------------------------
+def rolling_slope(x):
+    """
+    Calcula a inclinação (slope) da regressão linear para o array x,
+    utilizando os índices (0, 1, ..., len(x)-1) como variável independente.
+    """
+    t = np.arange(len(x))
+    slope, _ = np.polyfit(t, x, 1)
+    return slope
 
-def calcular_momentum_relativo(ativo,indice):
-    rs_momentum_a = talib.ROC(ativo, timeperiod=14)
-    rs_momentum_i = talib.ROC(indice, timeperiod=14)
-    rs_momentum = (rs_momentum_a / rs_momentum_i)*100
-    rs_momentum = ((rs_momentum - rs_momentum.ewm(span=21).mean()) / rs_momentum.ewm(span=21).std())*100
+# -------------------------------
+# Função para mapear ângulo em direção cardinal
+# -------------------------------
+def get_cardinal_direction(angle):
+    """
+    Mapeia um ângulo (em graus) para uma direção cardinal com 8 possibilidades:
+      - leste:     (-22.5, 22.5]
+      - nordeste:  (22.5, 67.5]
+      - norte:     (67.5, 112.5]
+      - noroeste:  (112.5, 157.5]
+      - oeste:     (angle > 157.5 ou <= -157.5)
+      - sudoeste:  (-157.5, -112.5]
+      - sul:       (-112.5, -67.5]
+      - sudeste:   (-67.5, -22.5]
+    """
+    if -22.5 < angle <= 22.5:
+        return "leste"
+    elif 22.5 < angle <= 67.5:
+        return "nordeste"
+    elif 67.5 < angle <= 112.5:
+        return "norte"
+    elif 112.5 < angle <= 157.5:
+        return "noroeste"
+    elif angle > 157.5 or angle <= -157.5:
+        return "oeste"
+    elif -157.5 < angle <= -112.5:
+        return "sudoeste"
+    elif -112.5 < angle <= -67.5:
+        return "sul"
+    elif -67.5 < angle <= -22.5:
+        return "sudeste"
+    else:
+        return "indeterminado"
 
-    return rs_momentum.round(2)
-
-def calcular_tendencia_cp(ativo):
-    mme9 = talib.EMA(ativo, timeperiod=9)
-    mme21 = talib.EMA(ativo, timeperiod=21)
-    dif = mme9 - mme21
-    return dif
-
-
-def calcular_tendencia_lp(ativo):
-    mme50 = talib.EMA(ativo, timeperiod=50)
-    mme200 = talib.EMA(ativo, timeperiod=200)
-    dif = mme50 - mme200
-    return dif
-
-
+# -------------------------------
+# Seleção do Benchmark e Lista de Ativos
+# -------------------------------
 # Exibe a lista de códigos de índices
 print("Escolha um índice:")
 print("1 - IBOV")
@@ -49,7 +72,7 @@ print("13 - SMLL")
 print("14 - UTIL")
 
 # Solicita ao usuário que digite o número correspondente ao índice desejado
-codigo = int(input("Digite o número do índice desejado: "))
+codigo_indice = int(input("Digite o número do índice desejado: "))
 
 # Dicionário que mapeia códigos para os nomes dos índices
 indices = {
@@ -69,26 +92,26 @@ indices = {
     14: "UTIL",
 }
 
-# Verifica se o código digitado pelo usuário está no dicionário
-if codigo in indices:
-    indice = indices[codigo]
+# Verifica se o código digitado está no dicionário
+if codigo_indice in indices:
+    indice = indices[codigo_indice]
     print(f"Você selecionou o índice {indice}.")
 else:
     print("Código de índice inválido.")
-
-# Agora, a variável "indice" contém o código selecionado (ou é None se o código for inválido)
-
+    exit()
 
 # Diretório onde os arquivos .csv estão armazenados
 data_dir = r"C:/Users/armen/OneDrive/Estratégias/Base/Diária"
 
-list_of_files = glob.glob(
-    f"C:/Users/armen/OneDrive/Estratégias/Listas/{indice}/*"
-)  # * means all if need specific format then *.csv
+# Obtém a lista de ativos a partir do arquivo mais recente na pasta da lista do índice selecionado
+lista_dir = f"C:/Users/armen/OneDrive/Estratégias/Listas/{indice}/*"
+list_of_files = glob.glob(lista_dir)
+if not list_of_files:
+    print(f"Nenhum arquivo encontrado em: {lista_dir}")
+    exit()
+
 latest_file = max(list_of_files, key=os.path.getctime)
 
-
-# Lista de ativos
 lista = pd.read_csv(
     latest_file,
     sep=";",
@@ -101,107 +124,122 @@ lista = pd.read_csv(
     header=1,
     index_col=False,
 )
-
 ativos = lista["Código"]
 
-tendencia_CP = []
-tendencia_LP = []
+# -------------------------------
+# Leitura do Benchmark (Ibovespa)
+# -------------------------------
+benchmark_file = os.path.join(data_dir, "IBOV_B_0_Diário.csv")
+if not os.path.exists(benchmark_file):
+    print("Arquivo do IBOV não encontrado!")
+    exit()
+
+ibov = pd.read_csv(benchmark_file,
+                   sep=";",
+                   encoding="ISO-8859-1",
+                   skiprows=0,
+                   skipfooter=2,
+                   engine="python",
+                   thousands=".",
+                   decimal=",",
+                   header=0)
+ibov["Data"] = pd.to_datetime(ibov["Data"], format="%d/%m/%Y")
+ibov = ibov.sort_values(by="Data", ascending=True)
+
+# -------------------------------
+# Processamento de Cada Ativo
+# -------------------------------
+results = []       # Lista para armazenar os resultados
+rolling_window = 30  # Tamanho da janela para o cálculo do rolling slope
+
 for codigo_acao in ativos:
-    try:
-        acao = pd.read_csv(
-            f"C:/Users/armen/OneDrive/Estratégias/Base/Diária/{codigo_acao}_B_0_Diário.csv",
-            sep=";",
-            encoding="ISO-8859-1",
-            skiprows=0,
-            skipfooter=2,
-            engine="python",
-            thousands=".",
-            decimal=",",
-            header=0,
-            index_col=False,
-        )
-    except FileNotFoundError:
-        print("Ação inválida. Tente novamente.")
+    codigo_acao = str(codigo_acao).strip()
+    asset_file = os.path.join(data_dir, f"{codigo_acao}_B_0_Diário.csv")
+    if not os.path.exists(asset_file):
+        print(f"Arquivo da ação {codigo_acao} não encontrado, pulando...")
         continue
 
+    # Leitura do arquivo da ação
+    acao = pd.read_csv(asset_file,
+                       sep=";",
+                       encoding="ISO-8859-1",
+                       skiprows=0,
+                       skipfooter=2,
+                       engine="python",
+                       thousands=".",
+                       decimal=",",
+                       header=0)
 
+    # Monta o DataFrame com Data, Fechamento da Ação
     dados = pd.DataFrame()
-
-    # Carrega a série histórica do IBOV
-    ibov = pd.read_csv(
-        "C:/Users/armen/OneDrive/Estratégias/Base/Diária/IBOV_B_0_Diário.csv",
-        sep=";",
-        encoding="ISO-8859-1",
-        skiprows=0,
-        skipfooter=2,
-        engine="python",
-        thousands=".",
-        decimal=",",
-        header=0,
-        index_col=False,
-    )
-
-    dados["Data"] = acao["Data"]
+    dados["Data"] = pd.to_datetime(acao["Data"], format="%d/%m/%Y")
     dados["Ação"] = acao["Fechamento"]
-    dados["Indice"] = ibov["Fechamento"]
-    dados["Data"] = pd.to_datetime(dados["Data"], format="%d/%m/%Y")
-    dados = dados.sort_values(by=["Data"], ascending=True)
+    dados = dados.sort_values(by="Data", ascending=True)
 
-    df = pd.DataFrame(dados)
-    df = df.tail(1)
+    # Realiza o merge com os dados do benchmark (Ibovespa) com base na Data
+    merged = pd.merge(dados, ibov[["Data", "Fechamento"]], on="Data", how="inner")
+    merged.rename(columns={"Fechamento": "Indice"}, inplace=True)
+    if merged.empty:
+        print(f"Dados vazios para a ação {codigo_acao} após merge com o benchmark, pulando...")
+        continue
 
-    # Calcular desempenho relativo e momentum relativo para cada ativo
+    # -------------------------------
+    # Cálculo das Funções Reais do RRG
+    # -------------------------------
+    merged["RS"] = merged["Ação"] / merged["Indice"]
+    merged["logRS"] = np.log(merged["RS"])
+    merged["slope"] = merged["logRS"].rolling(window=rolling_window).apply(rolling_slope, raw=True)
+    merged["theta"] = np.degrees(np.arctan(merged["slope"]))
+    merged["rotation"] = merged["theta"].diff()
 
-    df[f"{acao}_tendencia_CP"] = calcular_momentum_relativo(dados["Ação"],dados["Indice"])
-    df[f"{acao}_tendencia_LP"] = calcular_desempenho_relativo(dados["Ação"],dados["Indice"])
+    merged_clean = merged.dropna(subset=["theta", "rotation"]).reset_index(drop=True)
+    dados_last10 = merged_clean.tail(10)
+    if len(dados_last10) < 2:
+        print(f"Dados insuficientes para {codigo_acao} (menos de 10 dias), pulando...")
+        continue
 
-    tendencia_CP.append(df[f"{acao}_tendencia_CP"].iloc[-1])
-    tendencia_LP.append(df[f"{acao}_tendencia_LP"].iloc[-1])
+    theta_final = dados_last10["theta"].iloc[-1]
+    rotation_final = dados_last10["rotation"].iloc[-1]
 
+    # -------------------------------
+    # Classificação do Quadrante
+    # -------------------------------
+    if theta_final > 0 and rotation_final > 0:
+        quadrante = "Leading"
+    elif theta_final > 0 and rotation_final < 0:
+        quadrante = "Weakening"
+    elif theta_final < 0 and rotation_final < 0:
+        quadrante = "Lagging"
+    elif theta_final < 0 and rotation_final > 0:
+        quadrante = "Improving"
+    else:
+        quadrante = "Indeterminado"
 
+    # -------------------------------
+    # Cálculo da Direção (com base na variação entre os dois últimos pontos)
+    # -------------------------------
+    dx = dados_last10["theta"].iloc[-1] - dados_last10["theta"].iloc[-2]
+    dy = dados_last10["rotation"].iloc[-1] - dados_last10["rotation"].iloc[-2]
+    angle_movement = math.degrees(math.atan2(dy, dx))
+    direcao = get_cardinal_direction(angle_movement)
 
+    # Armazena o resultado para o ativo
+    results.append({
+        "Ação": codigo_acao,
+        "Quadrante": quadrante,
+        "Direção": direcao,
+        "Theta (graus)": round(theta_final, 2),
+        "Rotação (graus)": round(rotation_final, 2)
+    })
+    print(f"Processado {codigo_acao}: Quadrante = {quadrante}, Direção = {direcao}")
 
-
-# Plotar o gráfico RRG
-plt.figure(figsize=(8, 8))
-
-
-# Adicionar a seta no final da linha de tendência
-#    plt.arrow(df[f"{acao}_tendencia_CP"].iloc[-2], df[f"{acao}_tendencia_LP"].iloc[-2],
-#              df[f"{acao}_tendencia_CP"].iloc[-1] - df[f"{acao}_tendencia_CP"].iloc[-2],
-#              df[f"{acao}_tendencia_LP"].iloc[-1] - df[f"{acao}_tendencia_LP"].iloc[-2],
-#              shape='full', color='red', lw=1, length_includes_head=True, head_width=10)
-
-
-# Adicionar os pontos de dispersão
-plt.scatter(tendencia_CP, tendencia_LP, label=f"ação")
-# Adicionar nomes aos pontos usando annotate
-for i, ativo in enumerate(ativos):
-    plt.annotate(ativo, (tendencia_CP[i], tendencia_LP[i]), textcoords="offset points", xytext=(0, 5), ha='center')
-
-
-# Color each quadrant
-plt.fill_between([-400, 0], [-400, -400], [0, 0], color='red', alpha=0.2)
-plt.fill_between([0, 400], [-400, -400], [0, 0], color='yellow', alpha=0.2)
-plt.fill_between([400,0 ], [0, 0], [400, 400], color='green', alpha=0.2)
-plt.fill_between([0, -400], [400, 400], [0, 0], color='blue', alpha=0.2)
-# Add text labels in each corner
-plt.text(-250, 250, 'Improving')
-plt.text(250, 250, 'Leading')
-plt.text(250, -250, 'Weakening')
-plt.text(-250, -250, 'Lagging')
-
-
-
-
-
-plt.axhline(0, color="black", linestyle="--", linewidth=0.8)
-plt.axvline(0, color="black", linestyle="--", linewidth=0.8)
-plt.title("Relative Rotation Graph")
-plt.xlabel(f"Tendência CP")
-plt.ylabel(f"Tendência LP")
-plt.legend()
-plt.grid(True)
-plt.show()
-
-
+# -------------------------------
+# Geração do Arquivo Excel com os Resultados
+# -------------------------------
+if results:
+    df_resultados = pd.DataFrame(results)
+    output_excel = "ativos_quadrante_direcao.xlsx"
+    df_resultados.to_excel(output_excel, index=False)
+    print(f"\nArquivo Excel '{output_excel}' criado com sucesso!")
+else:
+    print("Nenhum resultado foi processado.")
